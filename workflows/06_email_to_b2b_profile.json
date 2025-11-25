@@ -1,0 +1,126 @@
+{
+  "name": "Lead Magic - Email to B2B Profile",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-to-b2b-profile",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, client_id, email FROM people WHERE id = $1::uuid AND client_id = $2::uuid AND status = 'staging';",
+        "options": {}
+      },
+      "id": "fetch",
+      "name": "Fetch Person Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nif (items.length === 0) throw new Error('No person found');\nconst person = items[0].json;\nif (!person.email) throw new Error('Email required');\nreturn items;"
+      },
+      "id": "validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/b2b-profile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"work_email\": \"{{ $json.email }}\"\n}",
+        "options": {}
+      },
+      "id": "api",
+      "name": "Call Lead Magic API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO email_to_profile_enrichment (person_id, client_id, work_email, profile_url, message, credits_consumed) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6) RETURNING id;",
+        "options": {}
+      },
+      "id": "insert",
+      "name": "Insert Enrichment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE people SET linkedin_url = $3 WHERE id = $1::uuid AND linkedin_url IS NULL;",
+        "options": {}
+      },
+      "id": "update-linkedin",
+      "name": "Update LinkedIn URL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1340, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO enrichment_runs (person_id, client_id, enrichment_type, credits_consumed, status, api_response) VALUES ($1::uuid, $2::uuid, 'email_to_b2b_profile', $3, 'success', $4::jsonb);",
+        "options": {}
+      },
+      "id": "track",
+      "name": "Track Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1560, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"enrichment_type\": \"email_to_b2b_profile\",\n  \"person_id\": \"{{ $node['Fetch Person Data'].json.id }}\",\n  \"profile_url\": \"{{ $node['Call Lead Magic API'].json.profile_url }}\",\n  \"credits_consumed\": {{ $node['Call Lead Magic API'].json.credits_consumed }}\n}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch Person Data", "type": "main", "index": 0}]]},
+    "Fetch Person Data": {"main": [[{"node": "Validate Input", "type": "main", "index": 0}]]},
+    "Validate Input": {"main": [[{"node": "Call Lead Magic API", "type": "main", "index": 0}]]},
+    "Call Lead Magic API": {"main": [[{"node": "Insert Enrichment", "type": "main", "index": 0}]]},
+    "Insert Enrichment": {"main": [[{"node": "Update LinkedIn URL", "type": "main", "index": 0}]]},
+    "Update LinkedIn URL": {"main": [[{"node": "Track Run", "type": "main", "index": 0}]]},
+    "Track Run": {"main": [[{"node": "Respond Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}, {"name": "People Enrichment"}]
+}

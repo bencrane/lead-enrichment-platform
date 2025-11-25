@@ -1,0 +1,158 @@
+-- ============================================================================
+-- LEAD ENRICHMENT SYSTEM - TEST DATA FOR EXISTING CLIENTS
+-- ============================================================================
+-- Uses your existing client UUIDs from the database
+-- Creates: CSV uploads, companies, and people linked to existing clients
+-- ============================================================================
+
+-- Your existing client IDs:
+-- TechStart Inc:     30deebe2-4af4-48da-8bcb-b97fb9745bb0
+-- Acme Corp:         367c6830-d60e-4bb1-8b5e-3bee951fdc01
+-- Global Solutions:  a0d4bdab-14c5-4bc6-957e-7edf03b385a1
+
+-- ============================================================================
+-- 1. INSERT CSV UPLOADS
+-- ============================================================================
+
+INSERT INTO csv_uploads (id, client_id, original_filename, total_rows, processed_rows, status, uploaded_at) VALUES
+-- TechStart Inc upload
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '30deebe2-4af4-48da-8bcb-b97fb9745bb0', 'TechStart_Newsletter_Nov_2024.csv', 3, 0, 'pending', NOW() - INTERVAL '1 hour'),
+
+-- Acme Corp upload
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '367c6830-d60e-4bb1-8b5e-3bee951fdc01', 'Acme_Webinar_Leads_Nov_2024.csv', 5, 0, 'pending', NOW() - INTERVAL '2 hours'),
+
+-- Global Solutions upload
+('cccccccc-cccc-cccc-cccc-cccccccccccc', 'a0d4bdab-14c5-4bc6-957e-7edf03b385a1', 'GlobalSolutions_Conference_2024.csv', 4, 0, 'pending', NOW() - INTERVAL '3 hours');
+
+-- ============================================================================
+-- 2. INSERT TEST COMPANIES (Shared Across All Clients)
+-- ============================================================================
+
+INSERT INTO companies (id, name, domain, linkedin_url, linkedin_id, employee_count, industry) VALUES
+('c0000001-0000-0000-0000-000000000001', 'Microsoft', 'microsoft.com', 'https://www.linkedin.com/company/microsoft/', '1035', 220000, 'Technology'),
+('c0000002-0000-0000-0000-000000000002', 'Google', 'google.com', 'https://www.linkedin.com/company/google/', '1441', 150000, 'Technology'),
+('c0000003-0000-0000-0000-000000000003', 'Salesforce', 'salesforce.com', 'https://www.linkedin.com/company/salesforce/', '3185', 73000, 'Technology'),
+('c0000004-0000-0000-0000-000000000004', 'HubSpot', 'hubspot.com', 'https://www.linkedin.com/company/hubspot/', '42147', 7000, 'Technology'),
+('c0000005-0000-0000-0000-000000000005', 'Gong', 'gong.io', 'https://www.linkedin.com/company/gong-io/', '10048292', 1200, 'Technology');
+
+-- ============================================================================
+-- 3. INSERT TEST PEOPLE
+-- ============================================================================
+
+-- TechStart Inc leads (3 people)
+INSERT INTO people (id, client_id, company_id, csv_upload_id, email, first_name, last_name, full_name, linkedin_url, company_name, company_domain, status, enrichment_status) VALUES
+('p1111111-1111-1111-1111-111111111111', '30deebe2-4af4-48da-8bcb-b97fb9745bb0', 'c0000001-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'james.wilson@microsoft.com', 'James', 'Wilson', 'James Wilson', 'https://www.linkedin.com/in/jameswilson/', 'Microsoft', 'microsoft.com', 'staging', 'pending'),
+('p1111111-1111-1111-1111-111111111112', '30deebe2-4af4-48da-8bcb-b97fb9745bb0', 'c0000003-0000-0000-0000-000000000003', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'lisa.garcia@salesforce.com', 'Lisa', 'Garcia', 'Lisa Garcia', 'https://www.linkedin.com/in/lisagarcia/', 'Salesforce', 'salesforce.com', 'staging', 'pending'),
+('p1111111-1111-1111-1111-111111111113', '30deebe2-4af4-48da-8bcb-b97fb9745bb0', 'c0000005-0000-0000-0000-000000000005', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'robert.lee@gong.io', 'Robert', 'Lee', 'Robert Lee', 'https://www.linkedin.com/in/robertlee/', 'Gong', 'gong.io', 'staging', 'pending');
+
+-- Acme Corp leads (5 people)
+INSERT INTO people (id, client_id, company_id, csv_upload_id, email, first_name, last_name, full_name, linkedin_url, company_name, company_domain, status, enrichment_status) VALUES
+('p2222222-2222-2222-2222-222222222221', '367c6830-d60e-4bb1-8b5e-3bee951fdc01', 'c0000001-0000-0000-0000-000000000001', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'sarah.chen@microsoft.com', 'Sarah', 'Chen', 'Sarah Chen', 'https://www.linkedin.com/in/sarahchen/', 'Microsoft', 'microsoft.com', 'staging', 'pending'),
+('p2222222-2222-2222-2222-222222222222', '367c6830-d60e-4bb1-8b5e-3bee951fdc01', 'c0000002-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'michael.rodriguez@google.com', 'Michael', 'Rodriguez', 'Michael Rodriguez', 'https://www.linkedin.com/in/michaelrodriguez/', 'Google', 'google.com', 'staging', 'pending'),
+('p2222222-2222-2222-2222-222222222223', '367c6830-d60e-4bb1-8b5e-3bee951fdc01', 'c0000003-0000-0000-0000-000000000003', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'jennifer.kim@salesforce.com', 'Jennifer', 'Kim', 'Jennifer Kim', 'https://www.linkedin.com/in/jenniferkim/', 'Salesforce', 'salesforce.com', 'staging', 'pending'),
+('p2222222-2222-2222-2222-222222222224', '367c6830-d60e-4bb1-8b5e-3bee951fdc01', 'c0000004-0000-0000-0000-000000000004', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'david.patel@hubspot.com', 'David', 'Patel', 'David Patel', 'https://www.linkedin.com/in/davidpatel/', 'HubSpot', 'hubspot.com', 'staging', 'pending'),
+('p2222222-2222-2222-2222-222222222225', '367c6830-d60e-4bb1-8b5e-3bee951fdc01', 'c0000005-0000-0000-0000-000000000005', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'emily.johnson@gong.io', 'Emily', 'Johnson', 'Emily Johnson', 'https://www.linkedin.com/in/emilyjohnson/', 'Gong', 'gong.io', 'staging', 'pending');
+
+-- Global Solutions leads (4 people)
+INSERT INTO people (id, client_id, company_id, csv_upload_id, email, first_name, last_name, full_name, linkedin_url, company_name, company_domain, status, enrichment_status) VALUES
+('p3333333-3333-3333-3333-333333333331', 'a0d4bdab-14c5-4bc6-957e-7edf03b385a1', 'c0000002-0000-0000-0000-000000000002', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'amanda.martinez@google.com', 'Amanda', 'Martinez', 'Amanda Martinez', 'https://www.linkedin.com/in/amandamartinez/', 'Google', 'google.com', 'staging', 'pending'),
+('p3333333-3333-3333-3333-333333333332', 'a0d4bdab-14c5-4bc6-957e-7edf03b385a1', 'c0000003-0000-0000-0000-000000000003', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'christopher.brown@salesforce.com', 'Christopher', 'Brown', 'Christopher Brown', 'https://www.linkedin.com/in/christopherbrown/', 'Salesforce', 'salesforce.com', 'staging', 'pending'),
+('p3333333-3333-3333-3333-333333333333', 'a0d4bdab-14c5-4bc6-957e-7edf03b385a1', 'c0000004-0000-0000-0000-000000000004', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'melissa.taylor@hubspot.com', 'Melissa', 'Taylor', 'Melissa Taylor', 'https://www.linkedin.com/in/melissataylor/', 'HubSpot', 'hubspot.com', 'staging', 'pending'),
+('p3333333-3333-3333-3333-333333333334', 'a0d4bdab-14c5-4bc6-957e-7edf03b385a1', 'c0000005-0000-0000-0000-000000000005', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'daniel.anderson@gong.io', 'Daniel', 'Anderson', 'Daniel Anderson', 'https://www.linkedin.com/in/danielanderson/', 'Gong', 'gong.io', 'staging', 'pending');
+
+-- ============================================================================
+-- VERIFICATION QUERIES
+-- ============================================================================
+
+-- Check what was created
+SELECT 'CSV Uploads:' as info, COUNT(*) as count FROM csv_uploads;
+SELECT 'Companies:' as info, COUNT(*) as count FROM companies;
+SELECT 'People:' as info, COUNT(*) as count FROM people;
+
+-- Show people per client
+SELECT 
+    c.client_name,
+    COUNT(p.id) as lead_count
+FROM clients c
+LEFT JOIN people p ON c.id = p.client_id
+GROUP BY c.client_name
+ORDER BY c.client_name;
+
+-- Show all test people
+SELECT 
+    c.client_name,
+    p.full_name,
+    p.email,
+    p.company_name,
+    p.status
+FROM people p
+JOIN clients c ON p.client_id = c.id
+ORDER BY c.client_name, p.last_name;
+
+-- ============================================================================
+-- QUICK REFERENCE - TEST UUIDS TO USE IN n8n WORKFLOWS
+-- ============================================================================
+
+/*
+CLIENT IDS (YOUR EXISTING CLIENTS):
+- TechStart Inc:     30deebe2-4af4-48da-8bcb-b97fb9745bb0
+- Acme Corp:         367c6830-d60e-4bb1-8b5e-3bee951fdc01
+- Global Solutions:  a0d4bdab-14c5-4bc6-957e-7edf03b385a1
+
+CSV UPLOAD IDS (NEW):
+- TechStart upload:  aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+- Acme upload:       bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+- Global upload:     cccccccc-cccc-cccc-cccc-cccccccccccc
+
+PERSON IDS - TechStart Inc (3 people):
+- James Wilson:      p1111111-1111-1111-1111-111111111111
+- Lisa Garcia:       p1111111-1111-1111-1111-111111111112
+- Robert Lee:        p1111111-1111-1111-1111-111111111113
+
+PERSON IDS - Acme Corp (5 people):
+- Sarah Chen:        p2222222-2222-2222-2222-222222222221
+- Michael Rodriguez: p2222222-2222-2222-2222-222222222222
+- Jennifer Kim:      p2222222-2222-2222-2222-222222222223
+- David Patel:       p2222222-2222-2222-2222-222222222224
+- Emily Johnson:     p2222222-2222-2222-2222-222222222225
+
+PERSON IDS - Global Solutions (4 people):
+- Amanda Martinez:   p3333333-3333-3333-3333-333333333331
+- Christopher Brown: p3333333-3333-3333-3333-333333333332
+- Melissa Taylor:    p3333333-3333-3333-3333-333333333333
+- Daniel Anderson:   p3333333-3333-3333-3333-333333333334
+
+COMPANY IDS:
+- Microsoft:         c0000001-0000-0000-0000-000000000001
+- Google:            c0000002-0000-0000-0000-000000000002
+- Salesforce:        c0000003-0000-0000-0000-000000000003
+- HubSpot:           c0000004-0000-0000-0000-000000000004
+- Gong:              c0000005-0000-0000-0000-000000000005
+*/
+
+-- ============================================================================
+-- TEST WEBHOOK PAYLOADS FOR n8n
+-- ============================================================================
+
+/*
+Test Email Validation workflow (Acme Corp lead):
+{
+  "person_id": "p2222222-2222-2222-2222-222222222221",
+  "client_id": "367c6830-d60e-4bb1-8b5e-3bee951fdc01",
+  "enrichment_type": "email_validation"
+}
+
+Test Profile Search workflow (TechStart Inc lead):
+{
+  "person_id": "p1111111-1111-1111-1111-111111111111",
+  "client_id": "30deebe2-4af4-48da-8bcb-b97fb9745bb0",
+  "enrichment_type": "profile_search"
+}
+
+Test Company Funding workflow (Gong):
+{
+  "company_id": "c0000005-0000-0000-0000-000000000005",
+  "client_id": "367c6830-d60e-4bb1-8b5e-3bee951fdc01",
+  "enrichment_type": "company_funding"
+}
+*/

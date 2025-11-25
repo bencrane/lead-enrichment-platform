@@ -1,0 +1,126 @@
+{
+  "name": "Lead Magic - Email Finder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-finder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  p.id, p.client_id, p.first_name, p.last_name,\n  c.domain, c.name as company_name\nFROM people p\nLEFT JOIN companies c ON p.company_id = c.id\nWHERE p.id = $1::uuid AND p.client_id = $2::uuid AND p.status = 'staging';",
+        "options": {}
+      },
+      "id": "fetch-person",
+      "name": "Fetch Person Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nif (items.length === 0) throw new Error('No person found');\n\nconst person = items[0].json;\nif (!person.first_name) throw new Error('First name required');\nif (!person.last_name) throw new Error('Last name required');\nif (!person.domain) throw new Error('Company domain required');\n\nreturn items;"
+      },
+      "id": "validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/email-finder",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"first_name\": \"{{ $json.first_name }}\",\n  \"last_name\": \"{{ $json.last_name }}\",\n  \"domain\": \"{{ $json.domain }}\",\n  \"company_name\": \"{{ $json.company_name }}\"\n}",
+        "options": {}
+      },
+      "id": "api-call",
+      "name": "Call Lead Magic API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO email_finder_enrichment (\n  person_id, client_id, email, status, domain, is_domain_catch_all,\n  mx_record, mx_provider, mx_security_gateway, company_name, company_industry,\n  company_size, company_founded, company_location, company_linkedin_url,\n  company_linkedin_id, company_facebook_url, company_twitter_url,\n  company_type, credits_consumed\n) VALUES (\n  $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10,\n  $11, $12, $13, $14::jsonb, $15, $16, $17, $18, $19, $20\n) RETURNING id;",
+        "options": {}
+      },
+      "id": "insert-enrichment",
+      "name": "Insert Enrichment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE people SET email = $3 WHERE id = $1::uuid AND email IS NULL;",
+        "options": {}
+      },
+      "id": "update-person-email",
+      "name": "Update Person Email",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1340, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO enrichment_runs (\n  person_id, client_id, enrichment_type, credits_consumed, status, api_response\n) VALUES ($1::uuid, $2::uuid, 'email_finder', $3, 'success', $4::jsonb);",
+        "options": {}
+      },
+      "id": "track-run",
+      "name": "Track Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1560, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"enrichment_type\": \"email_finder\",\n  \"person_id\": \"{{ $node['Fetch Person Data'].json.id }}\",\n  \"email\": \"{{ $node['Call Lead Magic API'].json.email }}\",\n  \"credits_consumed\": {{ $node['Call Lead Magic API'].json.credits_consumed }}\n}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch Person Data", "type": "main", "index": 0}]]},
+    "Fetch Person Data": {"main": [[{"node": "Validate Input", "type": "main", "index": 0}]]},
+    "Validate Input": {"main": [[{"node": "Call Lead Magic API", "type": "main", "index": 0}]]},
+    "Call Lead Magic API": {"main": [[{"node": "Insert Enrichment", "type": "main", "index": 0}]]},
+    "Insert Enrichment": {"main": [[{"node": "Update Person Email", "type": "main", "index": 0}]]},
+    "Update Person Email": {"main": [[{"node": "Track Run", "type": "main", "index": 0}]]},
+    "Track Run": {"main": [[{"node": "Respond Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}, {"name": "People Enrichment"}]
+}

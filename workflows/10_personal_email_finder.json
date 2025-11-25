@@ -1,0 +1,24 @@
+{
+  "name": "Lead Magic - Personal Email Finder",
+  "nodes": [
+    {"parameters": {"httpMethod": "POST", "path": "personal-email-finder", "responseMode": "responseNode"}, "id": "webhook", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 300]},
+    {"parameters": {"operation": "executeQuery", "query": "SELECT id, client_id, linkedin_url FROM people WHERE id = $1::uuid AND client_id = $2::uuid;"}, "id": "fetch", "name": "Fetch", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [460, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"mode": "runOnceForAllItems", "jsCode": "const p = $input.first().json;\nif (!p.linkedin_url) throw new Error('LinkedIn URL required');\nreturn [{json: {...p, profile_url: p.linkedin_url}}];"}, "id": "validate", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 300]},
+    {"parameters": {"method": "POST", "url": "https://api.leadmagic.io/v1/people/personal-email-finder", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"}, {"name": "Content-Type", "value": "application/json"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\"profile_url\": \"{{ $json.profile_url }}\"}"}, "id": "api", "name": "API", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [900, 300]},
+    {"parameters": {"mode": "runOnceForAllItems", "jsCode": "const p = $node.Fetch.json;\nconst api = $input.first().json;\nreturn [{json: {person_id: p.id, client_id: p.client_id, profile_url: api.profile_url || p.linkedin_url, personal_email: api.personal_email, message: api.message, credits_consumed: api.credits_consumed}}];"}, "id": "prepare", "name": "Prepare", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 300]},
+    {"parameters": {"operation": "executeQuery", "query": "INSERT INTO personal_email_finder_enrichment (person_id, client_id, profile_url, personal_email, message, credits_consumed) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6);"}, "id": "insert", "name": "Insert", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [1340, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"operation": "executeQuery", "query": "INSERT INTO enrichment_runs (person_id, client_id, enrichment_type, credits_consumed, status) VALUES ($1::uuid, $2::uuid, 'personal_email_finder', $3, 'success');"}, "id": "track", "name": "Track", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [1560, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"respondWith": "json", "responseBody": "={\"success\": true}"}, "id": "respond", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1780, 300]}
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch"}]]},
+    "Fetch": {"main": [[{"node": "Validate"}]]},
+    "Validate": {"main": [[{"node": "API"}]]},
+    "API": {"main": [[{"node": "Prepare"}]]},
+    "Prepare": {"main": [[{"node": "Insert"}]]},
+    "Insert": {"main": [[{"node": "Track"}]]},
+    "Track": {"main": [[{"node": "Respond"}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}]
+}

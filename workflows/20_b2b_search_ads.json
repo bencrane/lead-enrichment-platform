@@ -1,0 +1,43 @@
+{
+  "name": "Lead Magic - B2B Search Ads",
+  "nodes": [
+    {
+      "parameters": {"httpMethod": "POST", "path": "b2b-search-ads", "responseMode": "responseNode"},
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/ads/b2b-search-ads",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"domain\": \"{{ $json.domain }}\", \"limit\": 50}"
+      },
+      "id": "api",
+      "name": "API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={\"success\": true}"},
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "API Call"}]]},
+    "API Call": {"main": [[{"node": "Respond"}]]}
+  },
+  "tags": [{"name": "Lead Magic"}, {"name": "Ads"}],
+  "triggerCount": 1
+}

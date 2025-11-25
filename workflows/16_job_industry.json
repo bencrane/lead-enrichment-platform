@@ -1,0 +1,43 @@
+{
+  "name": "Lead Magic - Job Industry Reference",
+  "nodes": [
+    {
+      "parameters": {"httpMethod": "POST", "path": "job-industry", "responseMode": "responseNode"},
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/jobs/job-industry",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}"
+      },
+      "id": "api",
+      "name": "API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={\"success\": true}"},
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "API Call"}]]},
+    "API Call": {"main": [[{"node": "Respond"}]]}
+  },
+  "tags": [{"name": "Lead Magic"}, {"name": "Jobs Reference"}],
+  "triggerCount": 1
+}

@@ -1,0 +1,24 @@
+{
+  "name": "Lead Magic - Role Finder",
+  "nodes": [
+    {"parameters": {"httpMethod": "POST", "path": "role-finder", "responseMode": "responseNode"}, "id": "webhook", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 300]},
+    {"parameters": {"operation": "executeQuery", "query": "SELECT id, domain, name FROM companies WHERE id = $1::uuid;"}, "id": "fetch", "name": "Fetch", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [460, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"mode": "runOnceForAllItems", "jsCode": "const c = $input.first().json;\nif (!c.name || !c.domain) throw new Error('Company name and domain required');\nconst job_title = $node.Webhook.json.body.job_title || 'ceo';\nreturn [{json: {...c, job_title}}];"}, "id": "validate", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 300]},
+    {"parameters": {"method": "POST", "url": "https://api.leadmagic.io/v1/people/role-finder", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"}, {"name": "Content-Type", "value": "application/json"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\"company_name\": \"{{ $json.name }}\", \"company_domain\": \"{{ $json.domain }}\", \"job_title\": \"{{ $json.job_title }}\"}"}, "id": "api", "name": "API", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [900, 300]},
+    {"parameters": {"mode": "runOnceForAllItems", "jsCode": "const c = $node.Fetch.json;\nconst client_id = $node.Webhook.json.body.client_id;\nconst api = $input.first().json;\nreturn [{json: {company_id: c.id, client_id, name: api.name, profile_url: api.profile_url, first_name: api.first_name, last_name: api.last_name, message: api.message, credits_consumed: api.credits_consumed, company_name: api.company_name, company_website: api.company_website, job_title: $node.Validate.json.job_title}}];"}, "id": "prepare", "name": "Prepare", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 300]},
+    {"parameters": {"operation": "executeQuery", "query": "INSERT INTO role_finder_enrichment (company_id, client_id, name, profile_url, first_name, last_name, message, credits_consumed, company_name, company_website, job_title) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11);"}, "id": "insert", "name": "Insert", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [1340, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"operation": "executeQuery", "query": "INSERT INTO enrichment_runs (company_id, client_id, enrichment_type, credits_consumed, status) VALUES ($1::uuid, $2::uuid, 'role_finder', $3, 'success');"}, "id": "track", "name": "Track", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [1560, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"respondWith": "json", "responseBody": "={\"success\": true}"}, "id": "respond", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1780, 300]}
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch"}]]},
+    "Fetch": {"main": [[{"node": "Validate"}]]},
+    "Validate": {"main": [[{"node": "API"}]]},
+    "API": {"main": [[{"node": "Prepare"}]]},
+    "Prepare": {"main": [[{"node": "Insert"}]]},
+    "Insert": {"main": [[{"node": "Track"}]]},
+    "Track": {"main": [[{"node": "Respond"}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}]
+}

@@ -1,0 +1,126 @@
+{
+  "name": "Lead Magic - Mobile Finder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mobile-finder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, client_id, linkedin_url, email FROM people WHERE id = $1::uuid AND client_id = $2::uuid AND status = 'staging';",
+        "options": {}
+      },
+      "id": "fetch",
+      "name": "Fetch Person Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nif (items.length === 0) throw new Error('No person found');\nconst person = items[0].json;\nif (!person.linkedin_url) throw new Error('LinkedIn URL required');\nreturn items;"
+      },
+      "id": "validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/mobile-finder",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"profile_url\": \"{{ $json.linkedin_url }}\",\n  \"work_email\": \"{{ $json.email }}\"\n}",
+        "options": {}
+      },
+      "id": "api",
+      "name": "Call Lead Magic API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO mobile_finder_enrichment (person_id, client_id, profile_url, mobile_number, credits_consumed) VALUES ($1::uuid, $2::uuid, $3, $4, $5) RETURNING id;",
+        "options": {}
+      },
+      "id": "insert",
+      "name": "Insert Enrichment",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE people SET phone = $3 WHERE id = $1::uuid AND phone IS NULL;",
+        "options": {}
+      },
+      "id": "update-phone",
+      "name": "Update Person Phone",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1340, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO enrichment_runs (person_id, client_id, enrichment_type, credits_consumed, status, api_response) VALUES ($1::uuid, $2::uuid, 'mobile_finder', $3, 'success', $4::jsonb);",
+        "options": {}
+      },
+      "id": "track",
+      "name": "Track Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1560, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"enrichment_type\": \"mobile_finder\",\n  \"person_id\": \"{{ $node['Fetch Person Data'].json.id }}\",\n  \"mobile_number\": \"{{ $node['Call Lead Magic API'].json.mobile_number }}\",\n  \"credits_consumed\": {{ $node['Call Lead Magic API'].json.credits_consumed }}\n}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch Person Data", "type": "main", "index": 0}]]},
+    "Fetch Person Data": {"main": [[{"node": "Validate Input", "type": "main", "index": 0}]]},
+    "Validate Input": {"main": [[{"node": "Call Lead Magic API", "type": "main", "index": 0}]]},
+    "Call Lead Magic API": {"main": [[{"node": "Insert Enrichment", "type": "main", "index": 0}]]},
+    "Insert Enrichment": {"main": [[{"node": "Update Person Phone", "type": "main", "index": 0}]]},
+    "Update Person Phone": {"main": [[{"node": "Track Run", "type": "main", "index": 0}]]},
+    "Track Run": {"main": [[{"node": "Respond Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}, {"name": "People Enrichment"}]
+}

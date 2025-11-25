@@ -1,0 +1,140 @@
+{
+  "name": "Lead Magic - Job Change Detector",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-change-detector",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  p.id, p.client_id, p.linkedin_url,\n  c.name as company_name, c.domain\nFROM people p\nLEFT JOIN companies c ON p.company_id = c.id\nWHERE p.id = $1::uuid AND p.client_id = $2::uuid AND p.status = 'staging';",
+        "options": {}
+      },
+      "id": "fetch",
+      "name": "Fetch Person Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 400],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nif (items.length === 0) throw new Error('No person found');\n\nconst person = items[0].json;\nif (!person.linkedin_url) throw new Error('LinkedIn URL required');\nif (!person.company_name) throw new Error('Company name required');\nif (!person.domain) throw new Error('Company domain required');\n\nreturn items;"
+      },
+      "id": "validate",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/people/job-change-detector",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"profile_url\": \"{{ $json.linkedin_url }}\",\n  \"company_name\": \"{{ $json.company_name }}\",\n  \"company_domain\": \"{{ $json.domain }}\"\n}",
+        "options": {}
+      },
+      "id": "api",
+      "name": "Call Lead Magic API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO job_change_detection_enrichment (\n  person_id, client_id, job_change_detected, status, summary,\n  employee_name, expected_company, current_company,\n  current_position, tenure_stats, profile_found, profile_url, credits_consumed\n) VALUES (\n  $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8,\n  $9::jsonb, $10::jsonb, $11, $12, $13\n) RETURNING id;",
+        "options": {}
+      },
+      "id": "insert-detection",
+      "name": "Insert Detection Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 400],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const apiResponse = $node['Call Lead Magic API'].json;\nconst personData = $node['Fetch Person Data'].json;\n\nif (!apiResponse.work_history || apiResponse.work_history.length === 0) {\n  return [];\n}\n\nreturn apiResponse.work_history.map(job => ({\n  json: {\n    person_id: personData.id,\n    client_id: personData.client_id,\n    source: 'job_change_detector',\n    position_title: job.title,\n    company_name: job.company,\n    employment_period: job.duration,\n    is_present: job.is_present\n  }\n}));"
+      },
+      "id": "prepare-work",
+      "name": "Prepare Work History",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO work_history (\n  person_id, client_id, source, position_title, company_name,\n  employment_period, is_present\n) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7);",
+        "options": {}
+      },
+      "id": "insert-work",
+      "name": "Insert Work History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1560, 300],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO enrichment_runs (\n  person_id, client_id, enrichment_type, credits_consumed, status, api_response\n) VALUES ($1::uuid, $2::uuid, 'job_change_detector', $3, 'success', $4::jsonb);",
+        "options": {}
+      },
+      "id": "track",
+      "name": "Track Run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1780, 400],
+      "credentials": {"postgres": {"id": "supabase-db", "name": "Supabase PostgreSQL"}}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"enrichment_type\": \"job_change_detector\",\n  \"person_id\": \"{{ $node['Fetch Person Data'].json.id }}\",\n  \"job_change_detected\": {{ $node['Call Lead Magic API'].json.job_change_detected }},\n  \"status\": \"{{ $node['Call Lead Magic API'].json.status }}\",\n  \"credits_consumed\": {{ $node['Call Lead Magic API'].json.credits_consumed }}\n}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch Person Data", "type": "main", "index": 0}]]},
+    "Fetch Person Data": {"main": [[{"node": "Validate Input", "type": "main", "index": 0}]]},
+    "Validate Input": {"main": [[{"node": "Call Lead Magic API", "type": "main", "index": 0}]]},
+    "Call Lead Magic API": {"main": [[
+      {"node": "Insert Detection Data", "type": "main", "index": 0},
+      {"node": "Prepare Work History", "type": "main", "index": 0}
+    ]]},
+    "Insert Detection Data": {"main": [[{"node": "Track Run", "type": "main", "index": 0}]]},
+    "Prepare Work History": {"main": [[{"node": "Insert Work History", "type": "main", "index": 0}]]},
+    "Track Run": {"main": [[{"node": "Respond Success", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}, {"name": "People Enrichment"}]
+}

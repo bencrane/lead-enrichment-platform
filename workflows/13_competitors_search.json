@@ -1,0 +1,56 @@
+{
+  "name": "Lead Magic - Competitors Search",
+  "nodes": [
+    {
+      "parameters": {"httpMethod": "POST", "path": "competitors-search", "responseMode": "responseNode"},
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id, c.client_id, c.domain FROM companies c WHERE c.id = $1::uuid AND c.client_id = $2::uuid;"
+      },
+      "id": "fetch",
+      "name": "Fetch Company",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [460, 400],
+      "credentials": {"postgres": {"id": "supabase"}}
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.leadmagic.io/v1/companies/competitors-search",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"domain\": \"{{ $json.domain }}\"}"
+      },
+      "id": "api",
+      "name": "API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {"respondWith": "json", "responseBody": "={\"success\": true}"},
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch Company"}]]},
+    "Fetch Company": {"main": [[{"node": "API Call"}]]},
+    "API Call": {"main": [[{"node": "Respond"}]]}
+  },
+  "tags": [{"name": "Lead Magic"}, {"name": "Company"}],
+  "triggerCount": 1
+}

@@ -1,0 +1,22 @@
+{
+  "name": "Lead Magic - Employee Finder",
+  "nodes": [
+    {"parameters": {"httpMethod": "POST", "path": "employee-finder", "responseMode": "responseNode"}, "id": "webhook", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 1.1, "position": [240, 300]},
+    {"parameters": {"operation": "executeQuery", "query": "SELECT id, domain, name FROM companies WHERE id = $1::uuid;"}, "id": "fetch", "name": "Fetch Company", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [460, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"mode": "runOnceForAllItems", "jsCode": "const c = $input.first().json;\nif (!c.domain) throw new Error('Company domain required');\nconst limit = $node.Webhook.json.body.limit || 20;\nreturn [{json: {...c, limit}}];"}, "id": "validate", "name": "Validate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 300]},
+    {"parameters": {"method": "POST", "url": "https://api.leadmagic.io/v1/people/employee-finder", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-API-Key", "value": "35EXHsJ9YGfZXnmSMLZQ0N8iPtDOwPO5"}, {"name": "Content-Type", "value": "application/json"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\"company_domain\": \"{{ $json.domain }}\", \"company_name\": \"{{ $json.name }}\", \"limit\": {{ $json.limit }}}"}, "id": "api", "name": "API", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [900, 300]},
+    {"parameters": {"mode": "runOnceForAllItems", "jsCode": "const c = $node['Fetch Company'].json;\nconst client_id = $node.Webhook.json.body.client_id;\nconst employees = $input.first().json;\nif (!Array.isArray(employees)) return [{json: {error: 'No employees found'}}];\nreturn employees.map(emp => ({json: {...emp, company_id: c.id, client_id}}));"}, "id": "split", "name": "Split Employees", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 300]},
+    {"parameters": {"operation": "executeQuery", "query": "INSERT INTO employee_finder_enrichment (company_id, client_id, email, status, first_name, last_name, domain, is_domain_catch_all, mx_record, mx_provider, mx_security_gateway, company_name, company_industry, company_size, company_founded, company_location, company_linkedin_url, company_linkedin_id, company_facebook_url, company_twitter_url, company_type, credits_consumed) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18, $19, $20, $21, $22) RETURNING id;"}, "id": "insert", "name": "Insert", "type": "n8n-nodes-base.postgres", "typeVersion": 2.4, "position": [1340, 300], "credentials": {"postgres": {"id": "supabase-db"}}},
+    {"parameters": {"respondWith": "json", "responseBody": "={\"success\": true, \"count\": {{ $items().length }}}"}, "id": "respond", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [1560, 300]}
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Fetch Company"}]]},
+    "Fetch Company": {"main": [[{"node": "Validate"}]]},
+    "Validate": {"main": [[{"node": "API"}]]},
+    "API": {"main": [[{"node": "Split Employees"}]]},
+    "Split Employees": {"main": [[{"node": "Insert"}]]},
+    "Insert": {"main": [[{"node": "Respond"}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "Lead Magic"}]
+}
