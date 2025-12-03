@@ -1,7 +1,7 @@
 name: Sync Supabase Schema
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger only
 
 jobs:
   sync-schema:
@@ -11,15 +11,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PostgreSQL 17 client
+      - name: Install PostgreSQL client
         run: |
-          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-
-      - name: Create output directory
-        run: mkdir -p new-database
+          sudo apt-get install -y postgresql-client
 
       - name: Extract schema from Supabase
         env:
@@ -34,10 +29,13 @@ jobs:
             --schema-only \
             --no-owner \
             --no-privileges \
+            --no-comments \
             --format=plain \
-            > new-database/schema.sql
+            > database/schema.sql
+          
+          echo "Schema extracted at $(date -u)" >> database/schema.sql
 
-      - name: Extract readable table definitions
+      - name: Extract detailed table definitions
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
@@ -62,7 +60,7 @@ jobs:
               WHERE table_schema = 'public'
               GROUP BY table_name
               ORDER BY table_name;
-            " > new-database/tables-readable.txt
+            " > database/tables-readable.txt
 
       - name: Extract foreign keys
         env:
@@ -90,12 +88,28 @@ jobs:
               WHERE tc.table_schema = 'public'
                 AND tc.constraint_type = 'FOREIGN KEY'
               ORDER BY tc.table_name;
-            " > new-database/foreign-keys.txt
+            " > database/foreign-keys.txt
+
+      - name: Extract RLS policies
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          psql \
+            --host=db.ivcemmeywnlhykbuafwv.supabase.co \
+            --port=5432 \
+            --username=postgres \
+            --dbname=postgres \
+            -c "
+              SELECT tablename, policyname, permissive, roles, cmd, qual, with_check
+              FROM pg_policies
+              WHERE schemaname = 'public'
+              ORDER BY tablename, policyname;
+            " > database/rls-policies.txt
 
       - name: Commit and push changes
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add new-database/
-          git diff --staged --quiet || git commit -m "Sync schema - $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git add database/
+          git diff --staged --quiet || git commit -m "Sync schema from Supabase - $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
